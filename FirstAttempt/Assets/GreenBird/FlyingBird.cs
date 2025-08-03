@@ -2,45 +2,34 @@
 using UnityEngine.InputSystem;
 public class FlyingBird : MonoBehaviour
 {
-    public float speed;
-    public float height = 2f;
-    public float frequency = 1f;
+    [SerializeField] private float speed =19.90f;
     [SerializeField] public float launchForce = 300f;
-    [SerializeField] private int predictionSteps = 50;
-    [SerializeField] private float timeStep = 0.1f;
     private Vector3 startPosition;
     private SpriteRenderer sr;
-    private Rigidbody2D rb;
-    [SerializeField] private LineRenderer lr;
+   // private Rigidbody2D rb;
+    [SerializeField] private Rigidbody2D rb;
+
+    // [SerializeField] private LineRenderer lr;
     private bool isDragging = false;
     private Vector3 dragStartPosition;
     private Vector3 dragEndPosition;
     private bool followCursor = false;
     private float timeLimit=5f;
     private bool cond = false;
-    private float theta;
-    private Vector3 direction;
-    private float maxDistance;
-    //private bool isGrounded = true;
     void Start()
     {
         startPosition = transform.position;
         sr=GetComponent<SpriteRenderer>();
         rb = GetComponent<Rigidbody2D>();
-        if(lr == null)
-        {
-            lr = gameObject.AddComponent<LineRenderer>();
-            lr.positionCount = 0; // Initialize with no points
-            lr.startWidth = 0.1f;
-            lr.endWidth = 0.1f;
-           // lr.material = new Material(Shader.Find("Sprites/Default"));
-            lr.startColor = Color.red;
-            lr.endColor = Color.red;
-        }
+
     }
     void Update()
     {
-        speed=rb.linearVelocity.magnitude;
+        if(rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+        }
+        
         var keyboard = Keyboard.current;
         var mouse = Mouse.current;
         GoDown(keyboard);
@@ -50,7 +39,7 @@ public class FlyingBird : MonoBehaviour
         CursorFollow(mouse);
         birdLaunch(mouse);
         checkBound();
-        calculateTheta(dragStartPosition ,  dragEndPosition);
+        
         //renderLine();
         //timeOut();
     }
@@ -111,29 +100,21 @@ public class FlyingBird : MonoBehaviour
             rb.gravityScale = 0f;
             cond = false;
         }
-        else if (isDragging && mouse.leftButton.isPressed)
-        {
-
-            Vector3 currentMousePos = Camera.main.ScreenToWorldPoint(mouse.position.ReadValue());
-            currentMousePos.z = 0f;
-            direction = dragStartPosition - currentMousePos;
-            Vector3 launchDirection = direction.normalized;
-
-            float launchSpeed = launchForce; // Use impulse-based speed
-            PredictTrajectory(direction, launchForce);
-        }
+        
         else if (mouse.leftButton.wasReleasedThisFrame && isDragging)
         {
             isDragging = false;
             dragEndPosition = Camera.main.ScreenToWorldPoint(mouse.position.ReadValue());
             dragEndPosition.z = 0f;
             Vector3 launchDirection = (dragStartPosition - dragEndPosition).normalized;
-
+            Debug.Log("Drag Start Position: " + dragStartPosition);
+            Debug.Log("Drag End Position: " + dragEndPosition);
+            Debug.Log("Launch Direction: " + launchDirection);
             rb.AddForce(launchDirection * launchForce);
             rb.gravityScale = 0.5f;
             cond = true;
 
-            lr.positionCount = 0; // Clear prediction line after launch
+            
         }
     }
     void checkBound()
@@ -153,39 +134,5 @@ public class FlyingBird : MonoBehaviour
             isDragging = false; // Reset dragging state
         }
             //Debug.Log(timeLimit);
-    }
-    void calculateTheta(Vector3 dragStartPosition, Vector3 dragEndPosition)
-    {
-        
-        
-            if (dragStartPosition != Vector3.zero && dragEndPosition != Vector3.zero)
-            {
-                direction = dragEndPosition - dragStartPosition;
-                theta = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-                maxDistance = speed * speed * Mathf.Sin(2 * theta * Mathf.Deg2Rad) / 4.9f;
-              //  Debug.Log($"Theta: {((360+theta)%360)%90} ,maxDistance: {maxDistance} ");
-                //Debug.Log($"speed: {speed}  ");
-                //Debug.Log("Gravity2D: " + Physics2D.gravity);
-
-            }
-
-    }
-
-    void PredictTrajectory(Vector3 launchDirection, float launchSpeed)
-    {
-        lr.positionCount = predictionSteps;
-        Vector3[] points = new Vector3[predictionSteps];
-        Vector3 startPos = transform.position;
-        float gravity = 4.91f;
-
-        for (int i = 0; i < predictionSteps; i++)
-        {
-            float t = i * timeStep;
-            float dx = launchSpeed * launchDirection.x * t;
-            float dy = launchSpeed * launchDirection.y * t + 0.5f * gravity * t * t;
-            points[i] = startPos + new Vector3(dx, dy, 0);
-        }
-
-        lr.SetPositions(points);
     }
 }
