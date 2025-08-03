@@ -16,12 +16,14 @@ public class LaunchArcRenderer : MonoBehaviour
     private Vector3 dragStartPosition;
     private Vector3 dragEndPosition;
     private bool isDragging = false;
+    private bool firstTry = true; // To ensure the bird can only be launched once per drag
     float g; //force of gravity on the y axis
     float radianAngle;
 
     private void Awake()
     {
         lr = GetComponent<LineRenderer>();
+        lr.enabled = false; // Initially disable the line renderer
         g = (Mathf.Abs(Physics2D.gravity.y))/2;
     }
 
@@ -36,6 +38,7 @@ public class LaunchArcRenderer : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        lr.enabled=false; // Initially disable the line renderer
         velocity = 0.06651f*(bird.launchForce);
         var mouse = Mouse.current;
         if (lr == null)
@@ -55,16 +58,24 @@ public class LaunchArcRenderer : MonoBehaviour
     {
         var mouse = Mouse.current;
         if (mouse == null) return;
-
-        if (Mouse.current.leftButton.wasPressedThisFrame)
+        if(bird.firstTry==true)
         {
+            firstTry = true;
+        }
+        if (Mouse.current.leftButton.wasPressedThisFrame&& firstTry)
+        {
+            firstTry = false; // Prevent further launches until the next drag
             dragStartPosition = Camera.main.ScreenToWorldPoint(mouse.position.ReadValue());
             dragStartPosition.z = 0;
             isDragging = true;
+            lr.enabled = true; // Enable the line renderer when dragging starts
         }
 
         if (Mouse.current.leftButton.isPressed && isDragging)
         {
+            
+            lr.sortingLayerName = "Default";   // Or any custom layer you've created
+            lr.sortingOrder = 5;
             dragEndPosition = Camera.main.ScreenToWorldPoint(mouse.position.ReadValue());
             dragEndPosition.z = 0;
 
@@ -80,6 +91,7 @@ public class LaunchArcRenderer : MonoBehaviour
         {
             isDragging = false;
             // You can trigger the launch here
+            lr.enabled = false; // Disable the line renderer after launch
             Debug.Log("Launch with velocity: " + velocity + " and angle: " + angle);
         }
     }

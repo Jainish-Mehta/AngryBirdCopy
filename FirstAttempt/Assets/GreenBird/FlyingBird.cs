@@ -16,6 +16,7 @@ public class FlyingBird : MonoBehaviour
     private bool followCursor = false;
     private float timeLimit=5f;
     private bool cond = false;
+    public bool firstTry = true; // To ensure the bird can only be launched once per drag
     void Start()
     {
         startPosition = transform.position;
@@ -75,13 +76,14 @@ public class FlyingBird : MonoBehaviour
     }
     void CursorFollow(Mouse mouse)
     {
+
          if (followCursor)
         {
             Vector3 mousePosition = mouse.position.ReadValue();
             mousePosition.z = Camera.main.WorldToScreenPoint(transform.position).z;
             transform.position = Camera.main.ScreenToWorldPoint(mousePosition);
         }
-        if (mouse.leftButton.isPressed)
+        if (mouse.leftButton.isPressed&& isDragging)
         {
             followCursor = true;
         }
@@ -92,9 +94,10 @@ public class FlyingBird : MonoBehaviour
     }
     void birdLaunch(Mouse mouse)
     {
-        if (mouse.leftButton.isPressed && !isDragging)
+        if (mouse.leftButton.isPressed && !isDragging && firstTry)
         {
             isDragging = true;
+            firstTry= false;
             dragStartPosition = Camera.main.ScreenToWorldPoint(mouse.position.ReadValue());
             dragStartPosition.z = 0f;
             rb.gravityScale = 0f;
@@ -132,6 +135,7 @@ public class FlyingBird : MonoBehaviour
             transform.rotation = Quaternion.identity;
             cond = false; // Reset condition
             isDragging = false; // Reset dragging state
+            firstTry = true; // Allow the bird to be launched again
         }
             //Debug.Log(timeLimit);
     }
