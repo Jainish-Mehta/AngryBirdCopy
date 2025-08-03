@@ -2,28 +2,45 @@
 using UnityEngine.InputSystem;
 public class FlyingBird : MonoBehaviour
 {
-    public float speed = 5f;
+    public float speed;
     public float height = 2f;
     public float frequency = 1f;
-    [SerializeField] public float launchForce = 500f;
+    [SerializeField] public float launchForce = 300f;
+    [SerializeField] private int predictionSteps = 50;
+    [SerializeField] private float timeStep = 0.1f;
     private Vector3 startPosition;
     private SpriteRenderer sr;
     private Rigidbody2D rb;
-    private LineRenderer lr;
+    [SerializeField] private LineRenderer lr;
     private bool isDragging = false;
     private Vector3 dragStartPosition;
+    private Vector3 dragEndPosition;
     private bool followCursor = false;
     private float timeLimit=5f;
     private bool cond = false;
-    private bool isGrounded = true;
+    private float theta;
+    private Vector3 direction;
+    private float maxDistance;
+    //private bool isGrounded = true;
     void Start()
     {
         startPosition = transform.position;
         sr=GetComponent<SpriteRenderer>();
         rb = GetComponent<Rigidbody2D>();
+        if(lr == null)
+        {
+            lr = gameObject.AddComponent<LineRenderer>();
+            lr.positionCount = 0; // Initialize with no points
+            lr.startWidth = 0.1f;
+            lr.endWidth = 0.1f;
+           // lr.material = new Material(Shader.Find("Sprites/Default"));
+            lr.startColor = Color.red;
+            lr.endColor = Color.red;
+        }
     }
     void Update()
     {
+        speed=rb.linearVelocity.magnitude;
         var keyboard = Keyboard.current;
         var mouse = Mouse.current;
         GoDown(keyboard);
@@ -33,7 +50,8 @@ public class FlyingBird : MonoBehaviour
         CursorFollow(mouse);
         birdLaunch(mouse);
         checkBound();
-        renderLine();
+        calculateTheta(dragStartPosition ,  dragEndPosition);
+        //renderLine();
         //timeOut();
     }
     void GoDown(Keyboard keyboard)
@@ -89,23 +107,34 @@ public class FlyingBird : MonoBehaviour
         {
             isDragging = true;
             dragStartPosition = Camera.main.ScreenToWorldPoint(mouse.position.ReadValue());
-            dragStartPosition.z = 0f; // Ensure z is zero for 2D
-            rb.gravityScale = 0f; // Disable gravity while dragging
-            cond=false;
-            isGrounded = true; // Reset grounded state
+            dragStartPosition.z = 0f;
+            rb.gravityScale = 0f;
+            cond = false;
+        }
+        else if (isDragging && mouse.leftButton.isPressed)
+        {
+
+            Vector3 currentMousePos = Camera.main.ScreenToWorldPoint(mouse.position.ReadValue());
+            currentMousePos.z = 0f;
+            direction = dragStartPosition - currentMousePos;
+            Vector3 launchDirection = direction.normalized;
+
+            float launchSpeed = launchForce; // Use impulse-based speed
+            PredictTrajectory(direction, launchForce);
         }
         else if (mouse.leftButton.wasReleasedThisFrame && isDragging)
         {
             isDragging = false;
-            Vector3 dragEndPosition = Camera.main.ScreenToWorldPoint(mouse.position.ReadValue());
-            dragEndPosition.z = 0f; // Ensure z is zero for 2D
-            Vector3 launchDirection = ( dragStartPosition - dragEndPosition  ).normalized;
+            dragEndPosition = Camera.main.ScreenToWorldPoint(mouse.position.ReadValue());
+            dragEndPosition.z = 0f;
+            Vector3 launchDirection = (dragStartPosition - dragEndPosition).normalized;
+
             rb.AddForce(launchDirection * launchForce);
-            rb.gravityScale=0.5f;
-            cond = true; // Enable condition for checking bounds
-            isGrounded = false; // Bird is no longer grounded after launch
+            rb.gravityScale = 0.5f;
+            cond = true;
+
+            lr.positionCount = 0; // Clear prediction line after launch
         }
-        
     }
     void checkBound()
     {
@@ -113,42 +142,50 @@ public class FlyingBird : MonoBehaviour
         {
         timeLimit -= Time.deltaTime;
         }
-        if (transform.position.y < -10 || transform.position.x < -30 || transform.position.x > 30 || (timeLimit <= 0f && rb.linearVelocity.magnitude<=0))
+        if (transform.position.y < -10 || transform.position.x < -30 || transform.position.x > 1000 || (timeLimit <= 0f && rb.linearVelocity.magnitude<=0))
         {
             rb.linearVelocity = Vector2.zero; // Stop the bird
             rb.gravityScale = 0f; // Disable gravity
             transform.position = startPosition; // Reset position
-            timeLimit = 5f; // Reset time limit
+            timeLimit = 10f; // Reset time limit
             transform.rotation = Quaternion.identity;
             cond = false; // Reset condition
             isDragging = false; // Reset dragging state
         }
             //Debug.Log(timeLimit);
     }
-    void renderLine()
+    void calculateTheta(Vector3 dragStartPosition, Vector3 dragEndPosition)
     {
-        if (lr == null)
-        {
-            lr = GetComponent<LineRenderer>();
-            if (lr != null)
+        
+        
+            if (dragStartPosition != Vector3.zero && dragEndPosition != Vector3.zero)
             {
-                lr.positionCount = 2;
+                direction = dragEndPosition - dragStartPosition;
+                theta = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+                maxDistance = speed * speed * Mathf.Sin(2 * theta * Mathf.Deg2Rad) / 4.9f;
+              //  Debug.Log($"Theta: {((360+theta)%360)%90} ,maxDistance: {maxDistance} ");
+                //Debug.Log($"speed: {speed}  ");
+                //Debug.Log("Gravity2D: " + Physics2D.gravity);
+
             }
-        }
-        if (lr != null)
+
+    }
+
+    void PredictTrajectory(Vector3 launchDirection, float launchSpeed)
+    {
+        lr.positionCount = predictionSteps;
+        Vector3[] points = new Vector3[predictionSteps];
+        Vector3 startPos = transform.position;
+        float gravity = 4.91f;
+
+        for (int i = 0; i < predictionSteps; i++)
         {
-            Vector3[] positions = new Vector3[2];
-            positions[0] = transform.position;
-            positions[1] = startPosition;
-            lr.SetPositions(positions);
+            float t = i * timeStep;
+            float dx = launchSpeed * launchDirection.x * t;
+            float dy = launchSpeed * launchDirection.y * t + 0.5f * gravity * t * t;
+            points[i] = startPos + new Vector3(dx, dy, 0);
         }
-        if(!isGrounded)
-        {
-            lr.enabled = false; // Disable line renderer when bird is in the air
-        }
-        else
-        {
-            lr.enabled = true; // Enable line renderer when bird is grounded
-        }
+
+        lr.SetPositions(points);
     }
 }
